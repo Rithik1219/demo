@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portfolio Predictive Engine – Dashboard</title>
+  <!-- Tailwind CSS via CDN (replace with compiled output in production) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#f0f9ff',
+              100: '#e0f2fe',
+              600: '#0284c7',
+              700: '#0369a1',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Smooth progress bar animation */
+    .bar-fill { transition: width 0.6s ease; }
+    /* Sticky header for table */
+    thead th { position: sticky; top: 0; z-index: 10; }
+  </style>
+</head>
+<body class="h-full font-sans antialiased text-gray-800">
+
+  <!-- ===================================================================
+       Top Navigation Bar
+  =================================================================== -->
+  <nav class="bg-white shadow-sm border-b border-gray-200">
+    <div class="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <!-- Logo icon -->
+        <svg class="w-8 h-8 text-brand-600" viewBox="0 0 24 24" fill="none"
+             xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="1.8">
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 17l4-4 3 3 4-5 4 4" />
+          <path stroke-linecap="round" stroke-linejoin="round"
+                d="M21 21H3V3" />
+        </svg>
+        <span class="text-xl font-bold tracking-tight text-gray-900">
+          Portfolio Predictive Engine
+        </span>
+      </div>
+      <!-- Trigger pipeline button -->
+      <button id="triggerBtn"
+              onclick="triggerPipeline()"
+              class="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700
+                     text-white text-sm font-medium px-4 py-2 rounded-lg shadow
+                     transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2
+                     focus:ring-brand-600">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Run Pipeline
+      </button>
+    </div>
+  </nav>
+
+  <!-- ===================================================================
+       Main Content
+  =================================================================== -->
+  <main class="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+    <!-- ----------------------------------------------------------------
+         Summary Cards
+    ---------------------------------------------------------------- -->
+    <section class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+
+      <!-- Total symbols -->
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Symbols</p>
+        <p class="mt-1 text-3xl font-bold text-gray-900">{{ total_symbols }}</p>
+      </div>
+
+      <!-- BUY count -->
+      <div class="bg-green-50 rounded-2xl shadow-sm border border-green-100 p-5">
+        <p class="text-xs font-semibold uppercase tracking-wide text-green-600">BUY signals</p>
+        <p class="mt-1 text-3xl font-bold text-green-700">{{ buy_count }}</p>
+      </div>
+
+      <!-- HOLD count -->
+      <div class="bg-yellow-50 rounded-2xl shadow-sm border border-yellow-100 p-5">
+        <p class="text-xs font-semibold uppercase tracking-wide text-yellow-600">HOLD signals</p>
+        <p class="mt-1 text-3xl font-bold text-yellow-700">{{ hold_count }}</p>
+      </div>
+
+      <!-- SELL count -->
+      <div class="bg-red-50 rounded-2xl shadow-sm border border-red-100 p-5">
+        <p class="text-xs font-semibold uppercase tracking-wide text-red-600">SELL signals</p>
+        <p class="mt-1 text-3xl font-bold text-red-700">{{ sell_count }}</p>
+      </div>
+
+    </section>
+
+    <!-- ----------------------------------------------------------------
+         Status notification (shown after triggering pipeline)
+    ---------------------------------------------------------------- -->
+    <div id="statusBanner" class="hidden rounded-lg px-4 py-3 text-sm font-medium"></div>
+
+    <!-- ----------------------------------------------------------------
+         Predictions Table
+    ---------------------------------------------------------------- -->
+    <section class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h2 class="text-lg font-semibold text-gray-800">Latest Predictions</h2>
+        <p class="text-xs text-gray-400">Sorted by Buy probability (highest first)</p>
+      </div>
+
+      {% if predictions %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-100 text-sm">
+          <thead class="bg-gray-50 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <tr>
+              <th class="px-6 py-3 text-left">Symbol</th>
+              <th class="px-6 py-3 text-center">Signal</th>
+              <th class="px-6 py-3 text-left w-48">Probability</th>
+              <th class="px-6 py-3 text-right">LSTM Conf.</th>
+              <th class="px-6 py-3 text-right">XGB Conf.</th>
+              <th class="px-6 py-3 text-right">Sentiment</th>
+              <th class="px-6 py-3 text-right">Bars</th>
+              <th class="px-6 py-3 text-right">Predicted At</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            {% for pred in predictions %}
+            <tr class="hover:bg-gray-50 transition-colors">
+
+              <!-- Symbol -->
+              <td class="px-6 py-4 font-semibold text-gray-900 whitespace-nowrap">
+                {{ pred.symbol }}
+                <span class="ml-1 text-xs font-normal text-gray-400">NSE</span>
+              </td>
+
+              <!-- Signal badge -->
+              <td class="px-6 py-4 text-center">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold
+                             {{ pred.signal_class }}">
+                  {{ pred.signal }}
+                </span>
+              </td>
+
+              <!-- Stacked probability bars -->
+              <td class="px-6 py-4 w-48">
+                <div class="space-y-1">
+                  <!-- BUY bar -->
+                  <div class="flex items-center gap-2">
+                    <span class="w-8 text-xs text-green-600 font-medium">BUY</span>
+                    <div class="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
+                      <div class="bar-fill bg-green-500 h-2 rounded-full"
+                           style="width: {{ pred.buy_pct }}">
+                      </div>
+                    </div>
+                    <span class="w-10 text-xs text-gray-500 text-right">
+                      {{ pred.buy_probability|floatformat:2 }}
+                    </span>
+                  </div>
+                  <!-- HOLD bar -->
+                  <div class="flex items-center gap-2">
+                    <span class="w-8 text-xs text-yellow-600 font-medium">HLD</span>
+                    <div class="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
+                      <div class="bar-fill bg-yellow-400 h-2 rounded-full"
+                           style="width: {{ pred.hold_pct }}">
+                      </div>
+                    </div>
+                    <span class="w-10 text-xs text-gray-500 text-right">
+                      {{ pred.hold_probability|floatformat:2 }}
+                    </span>
+                  </div>
+                  <!-- SELL bar -->
+                  <div class="flex items-center gap-2">
+                    <span class="w-8 text-xs text-red-600 font-medium">SEL</span>
+                    <div class="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
+                      <div class="bar-fill bg-red-500 h-2 rounded-full"
+                           style="width: {{ pred.sell_pct }}">
+                      </div>
+                    </div>
+                    <span class="w-10 text-xs text-gray-500 text-right">
+                      {{ pred.sell_probability|floatformat:2 }}
+                    </span>
+                  </div>
+                </div>
+              </td>
+
+              <!-- LSTM confidence -->
+              <td class="px-6 py-4 text-right text-gray-700 tabular-nums">
+                {{ pred.lstm_confidence|floatformat:3 }}
+              </td>
+
+              <!-- XGB confidence -->
+              <td class="px-6 py-4 text-right text-gray-700 tabular-nums">
+                {{ pred.xgb_confidence|floatformat:3 }}
+              </td>
+
+              <!-- Sentiment score -->
+              <td class="px-6 py-4 text-right tabular-nums
+                         {% if pred.sentiment_score > 0 %}text-green-600
+                         {% elif pred.sentiment_score < 0 %}text-red-600
+                         {% else %}text-gray-500{% endif %}">
+                {% if pred.sentiment_score > 0 %}+{% endif %}{{ pred.sentiment_score|floatformat:3 }}
+              </td>
+
+              <!-- Bar count -->
+              <td class="px-6 py-4 text-right text-gray-500 tabular-nums">
+                {{ pred.bar_count }}
+              </td>
+
+              <!-- Predicted at -->
+              <td class="px-6 py-4 text-right text-gray-400 text-xs whitespace-nowrap">
+                {{ pred.predicted_at_fmt }}
+              </td>
+
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% else %}
+      <!-- Empty state -->
+      <div class="flex flex-col items-center justify-center py-20 text-center">
+        <svg class="w-16 h-16 text-gray-200 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M9 17v-2m3 2v-4m3 4v-6M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        <h3 class="text-lg font-semibold text-gray-500">No predictions yet</h3>
+        <p class="mt-1 text-sm text-gray-400">
+          Run the pipeline to generate Buy / Hold / Sell signals.
+        </p>
+        <button onclick="triggerPipeline()"
+                class="mt-6 inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700
+                       text-white text-sm font-medium px-5 py-2.5 rounded-lg shadow
+                       transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2
+                       focus:ring-brand-600">
+          Run Pipeline Now
+        </button>
+      </div>
+      {% endif %}
+    </section>
+
+    <!-- ----------------------------------------------------------------
+         Model Component Legend
+    ---------------------------------------------------------------- -->
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex gap-4">
+        <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center">
+          <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="font-semibold text-gray-800">PyTorch LSTM</p>
+          <p class="text-xs text-gray-500 mt-0.5">Temporal price-action sequences (60-bar window)</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex gap-4">
+        <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center">
+          <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="font-semibold text-gray-800">XGBoost</p>
+          <p class="text-xs text-gray-500 mt-0.5">Tabular indicators: RSI, MACD, EMA, BB, ATR …</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex gap-4">
+        <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center">
+          <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="font-semibold text-gray-800">FinBERT Sentiment</p>
+          <p class="text-xs text-gray-500 mt-0.5">ProsusAI/finbert on Yahoo Finance headlines</p>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ===================================================================
+       Footer
+  =================================================================== -->
+  <footer class="mt-12 border-t border-gray-200 py-6 text-center text-xs text-gray-400">
+    Multi-Modal Portfolio Predictive Engine &mdash; for research purposes only.
+    Not financial advice.
+  </footer>
+
+  <!-- ===================================================================
+       JavaScript
+  =================================================================== -->
+  <script>
+    /**
+     * Trigger the full data-ingestion → feature → sentiment → ML pipeline
+     * via the API endpoint and show a status notification.
+     */
+    async function triggerPipeline() {
+      const btn    = document.getElementById('triggerBtn');
+      const banner = document.getElementById('statusBanner');
+
+      btn.disabled = true;
+      btn.textContent = 'Queuing…';
+
+      banner.className = 'rounded-lg px-4 py-3 text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200';
+      banner.textContent = 'Sending pipeline trigger request…';
+      banner.classList.remove('hidden');
+
+      try {
+        const resp = await fetch('/engine/api/trigger-pipeline/', { method: 'POST',
+          headers: { 'X-CSRFToken': getCookie('csrftoken') } });
+        const data = await resp.json();
+
+        if (data.status === 'queued') {
+          banner.className = 'rounded-lg px-4 py-3 text-sm font-medium bg-green-50 text-green-700 border border-green-200';
+          banner.textContent =
+            '✓ Pipeline tasks queued successfully. Task IDs: ' +
+            Object.entries(data.task_ids).map(([k, v]) => `${k}=${v}`).join(', ');
+        } else {
+          throw new Error(data.message || 'Unknown error');
+        }
+      } catch (err) {
+        banner.className = 'rounded-lg px-4 py-3 text-sm font-medium bg-red-50 text-red-700 border border-red-200';
+        banner.textContent = '✗ Error: ' + err.message;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003
+                     8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          Run Pipeline`;
+      }
+    }
+
+    /** Read a browser cookie by name (needed for CSRF token). */
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+      return '';
+    }
+  </script>
+</body>
+</html>
